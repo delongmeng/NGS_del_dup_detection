@@ -8,48 +8,55 @@ or wildtype.
 
 import numpy as np
 import pandas as pd
+import argparse
 from utility import *
 
 def main():
 
-	cnsl_data = pd.read_csv('cnsl_data.csv.gz', index_col=[0])
+	# take arguments from the command (the input path and output path)
+	in_arg = get_input_args()
 
-	# normalization by sample
-	# the average of reads across all probes within the nonCNSL region for each sample
-	normalization_factor = np.mean(cnsl_data[list(cnsl_data)[51:]], axis = 1)
+	# load data
+	cnsl_data = pd.read_csv(in_arg.input_path, index_col=[0])
 
-	cnsl_normalized = cnsl_data.copy()
-	cnsl_normalized.iloc[:,1:] = cnsl_normalized.iloc[:,1:].div(normalization_factor, axis = 0)
+	# sample normalization 
+	# using the average of reads across all probes within the nonCNSL region for each sample
+	sample_normalization_factor = np.mean(cnsl_data[list(cnsl_data)[51:]], axis = 1)
+	cnsl_s_norm = cnsl_data.copy()
+	cnsl_s_norm.iloc[:,1:] = cnsl_s_norm.iloc[:,1:].div(sample_normalization_factor, axis = 0)
 
-
-	# normalization by probe
-	normalization_factor_probe = np.mean(cnsl_normalized[list(cnsl_normalized)[1:]], axis = 0)
-	plt.hist(normalization_factor_probe, bins = 50);
-
-	cnsl_normalized_2 = cnsl_normalized.copy()
-
-	cnsl_normalized_2.iloc[:,1:] = cnsl_normalized_2.iloc[:,1:].div(normalization_factor_probe, axis = 1)
+	# probe normalization
+	# using the average of reads across all samples within the nonCNSL region for each probe
+	probe_normalization_factor = np.mean(cnsl_s_norm[list(cnsl_s_norm)[1:]], axis = 0)
+	cnsl_s_p_norm = cnsl_s_norm.copy()
+	cnsl_s_p_norm.iloc[:,1:] = cnsl_s_p_norm.iloc[:,1:].div(probe_normalization_factor, axis = 1)
 
 	# recoganize "bad" probes
-	# CNSL_probe_5, _23, _46
-	cnsl_std = np.std(cnsl_normalized_2.iloc[:, 1:51], axis = 0) 
-
+	cnsl_std = np.std(cnsl_s_p_norm.iloc[:, 1:51], axis = 0) 
 	bad_prob_ind = np.where(cnsl_std > 0.2)
 
 	# drop the problematic probes
-	cnsl_clean = cnsl_normalized_2.drop((cnsl_std[cnsl_std > 0.2]).index, axis = 1)
+	cnsl_clean = cnsl_s_p_norm.drop((cnsl_std[cnsl_std > 0.2]).index, axis = 1)
 
-
+	# preform annotation
 	annotation = []
-	for i in range(cnsl_normalized_2.shape[0]):
-	    annotation.append(variation_calling(cnsl_normalized_2, i))
+	for i in range(cnsl_s_p_norm.shape[0]):
+	    annotation.append(variation_calling(cnsl_s_p_norm, i, bad_prob_ind))
 	cnsl_clean["annotation"] = annotation
 
+	# summarize the annotations according to ethnicity groups
+	ethnicity_variation = cnsl_clean[["ethnicity", "annotation"]]
 	annotation_by_ethnicity = ethnicity_variation.groupby(["ethnicity", "annotation"]).size().reset_index(name='counts')
+	ethnicity_counts = cnsl_data.ethnicity.value_counts().reset_index(name='total_counts').rename(columns = {"index": "ethnicity"})
+	annotation_by_ethnicity = pd.merge(annotation_by_ethnicity, ethnicity_counts, how = "left", on = "ethnicity")
+	annotation_by_ethnicity["frequency"] = annotation_by_ethnicity.counts/annotation_by_ethnicity.total_counts
+	breakpoint_by_ethnicity = annotation_by_ethnicity.replace(["deletion", "duplication"], "breakpoint", regex = True)
+	breakpoint_by_ethnicity = breakpoint_by_ethnicity.groupby(["ethnicity","annotation"]).agg({'counts':'sum','total_counts':'mean', 'frequency':'sum'}).reset_index()
 
+	# save output files
 	cnsl_clean.to_csv("cnsl_annotation.csv", index = False)
 	annotation_by_ethnicity.to_csv("cnsl_annotation_by_ethnicity.csv", index = False)
-
+	breakpoint_by_ethnicity.to_csv("cnsl_breakpoint_by_ethnicity.csv", index = False)
 
 
 # Call the main function to run the program
