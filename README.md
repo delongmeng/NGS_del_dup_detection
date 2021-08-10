@@ -28,7 +28,7 @@ After normalization, 1 indicates CN = 2, 0.5 indicates a deletion (CN = 1), and 
 
 For variation annotation, I check for each sample the normalized reads of the 50 CNSL gene probes. For each potential breakpoint (check from the biggest to the smallest range) I calculate the average reads and determine if it's a duplication (around 1.5) or deletion (around 0.5). See below an example of calling a deletion of breakpoint probe_27-34 (sample #163).
 
-<img src ='/var/folders/tb/gs8f8b8n7mx6zhvfb0pftvqm0000gn/T/com.evernote.Evernote/WebKitDnD.h6MHNn/DC6F60D8-43EE-4BF9-9C9B-CA974F18A146.png' alt='image1' width='800'>
+<img src ='example_image.png' alt='image1' width='800'>
 
 
 
